@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Voice Note</title>
+  <title>Voice Comment</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -15,126 +15,213 @@
       justify-content: center;
       min-height: 100vh;
       overflow: hidden;
+      padding: 16px;
     }
-    .player-card {
-      width: 90%;
-      max-width: 380px;
+    .card {
+      width: 100%;
+      max-width: 360px;
       background: #161b22;
       border: 1px solid #30363d;
-      border-radius: 24px;
-      padding: 28px 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border-radius: 28px;
+      padding: 32px 20px;
       text-align: center;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
     }
     .status {
       font-size: 13px;
       color: #8b949e;
-      letter-spacing: 1px;
+      letter-spacing: 1.5px;
       text-transform: uppercase;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
+      font-weight: 600;
     }
     .wave-container {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 4px;
-      height: 60px;
-      margin-bottom: 24px;
+      height: 64px;
+      margin-bottom: 30px;
     }
     .bar {
       width: 4px;
       height: 8px;
-      background: #58a6ff;
+      background: #388bfd;
       border-radius: 4px;
       transition: height 0.1s ease;
     }
-    .btn-play {
-      background: #238636;
-      color: white;
-      border: none;
-      width: 64px;
-      height: 64px;
+    .btn-circle {
+      width: 72px;
+      height: 72px;
       border-radius: 50%;
+      border: none;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      outline: none;
-      box-shadow: 0 4px 15px rgba(35, 134, 54, 0.4);
+      margin-bottom: 20px;
+      transition: transform 0.1s ease;
     }
-    .btn-play svg { width: 26px; height: 26px; fill: white; }
+    .btn-circle:active { transform: scale(0.94); }
+    .btn-record { background: #da3633; box-shadow: 0 4px 20px rgba(218, 54, 51, 0.4); }
+    .btn-play { background: #238636; box-shadow: 0 4px 20px rgba(35, 134, 54, 0.4); }
+    .btn-circle svg { width: 30px; height: 30px; fill: white; }
+    
+    .btn-action {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 10px;
+    }
+    .btn-action:active { background: #30363d; }
   </style>
 </head>
 <body>
 
-  <div class="player-card">
-    <div class="status" id="statusText">Tap to Listen</div>
+  <div class="card">
+    <div class="status" id="statusText">Tap to Record Voice</div>
     
     <div class="wave-container" id="waveContainer"></div>
 
-    <button class="btn-play" id="playBtn" onclick="togglePlay()">
-      <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    <!-- Main Button -->
+    <button class="btn-circle btn-record" id="mainBtn" onclick="handleMainAction()">
+      <svg id="btnIcon" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
     </button>
+
+    <div id="actionArea" style="display: none;">
+      <button class="btn-action" onclick="copyShareLink()">📋 Copy Link for Comment</button>
+      <button class="btn-action" style="background: transparent; border: none; color: #8b949e;" onclick="resetRecorder()">Record Again</button>
+    </div>
   </div>
 
-  <audio id="audio" preload="metadata"></audio>
+  <audio id="audioElement"></audio>
 
   <script>
-    // Grab audio link passed in URL parameters: e.g. site.com/?audio=URL
     const urlParams = new URLSearchParams(window.location.search);
-    const audioUrl = urlParams.get('audio') || 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
-    
-    const audio = document.getElementById('audio');
-    audio.src = audioUrl;
+    const sharedAudio = urlParams.get('audio');
 
-    const container = document.getElementById('waveContainer');
-    const barCount = 28;
+    const statusText = document.getElementById('statusText');
+    const mainBtn = document.getElementById('mainBtn');
+    const btnIcon = document.getElementById('btnIcon');
+    const actionArea = document.getElementById('actionArea');
+    const audioElement = document.getElementById('audioElement');
+    const waveContainer = document.getElementById('waveContainer');
+
+    // Create 26 animated waveform bars
     const bars = [];
-
-    for (let i = 0; i < barCount; i++) {
-      const bar = document.createElement('div');
-      bar.className = 'bar';
-      container.appendChild(bar);
-      bars.push(bar);
+    for (let i = 0; i < 26; i++) {
+      const b = document.createElement('div');
+      b.className = 'bar';
+      waveContainer.appendChild(b);
+      bars.push(b);
     }
 
-    let interval;
-    function animateWaves(play) {
-      if (play) {
-        interval = setInterval(() => {
-          bars.forEach(bar => {
-            const h = Math.floor(Math.random() * 50) + 8;
-            bar.style.height = `${h}px`;
-          });
-        }, 120);
+    let waveTimer = null;
+    function setWavesActive(active) {
+      if (active) {
+        waveTimer = setInterval(() => {
+          bars.forEach(b => b.style.height = `${Math.floor(Math.random() * 52) + 8}px`);
+        }, 100);
       } else {
-        clearInterval(interval);
-        bars.forEach(bar => bar.style.height = '8px');
+        clearInterval(waveTimer);
+        bars.forEach(b => b.style.height = '8px');
       }
     }
 
-    function togglePlay() {
-      const icon = document.getElementById('playIcon');
-      const status = document.getElementById('statusText');
+    let mediaRecorder;
+    let audioChunks = [];
+    let state = sharedAudio ? "READY_TO_PLAY" : "IDLE"; // IDLE, RECORDING, RECORDED, PLAYING
+    let recordedBlobUrl = null;
 
-      if (audio.paused) {
-        audio.play();
-        animateWaves(true);
-        status.innerText = "Playing Voice Comment...";
-        icon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
-      } else {
-        audio.pause();
-        animateWaves(false);
-        status.innerText = "Paused";
-        icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+    if (sharedAudio) {
+      audioElement.src = sharedAudio;
+      statusText.innerText = "Tap to Listen";
+      mainBtn.className = "btn-circle btn-play";
+      btnIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+    }
+
+    async function handleMainAction() {
+      if (state === "IDLE") {
+        // Start recording
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+            recordedBlobUrl = URL.createObjectURL(audioBlob);
+            audioElement.src = recordedBlobUrl;
+            state = "RECORDED";
+            statusText.innerText = "Voice Recorded!";
+            mainBtn.className = "btn-circle btn-play";
+            btnIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+            actionArea.style.display = "block";
+            setWavesActive(false);
+          };
+
+          mediaRecorder.start();
+          state = "RECORDING";
+          statusText.innerText = "Recording... Tap to Stop";
+          btnIcon.innerHTML = '<path d="M6 6h12v12H6z"/>';
+          setWavesActive(true);
+        } catch (err) {
+          alert("Microphone permission required: " + err.message);
+        }
+
+      } else if (state === "RECORDING") {
+        // Stop recording
+        mediaRecorder.stop();
+
+      } else if (state === "RECORDED" || state === "READY_TO_PLAY") {
+        // Play audio
+        audioElement.play();
+        state = "PLAYING";
+        statusText.innerText = "Playing Voice Note...";
+        btnIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+        setWavesActive(true);
+
+      } else if (state === "PLAYING") {
+        // Pause audio
+        audioElement.pause();
+        state = "RECORDED";
+        statusText.innerText = "Paused";
+        btnIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+        setWavesActive(false);
       }
     }
 
-    audio.onended = () => {
-      animateWaves(false);
-      document.getElementById('statusText').innerText = "Finished";
-      document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+    audioElement.onended = () => {
+      state = "RECORDED";
+      statusText.innerText = "Playback Finished";
+      btnIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+      setWavesActive(false);
     };
+
+    function resetRecorder() {
+      state = "IDLE";
+      audioElement.src = "";
+      statusText.innerText = "Tap to Record Voice";
+      mainBtn.className = "btn-circle btn-record";
+      btnIcon.innerHTML = '<path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>';
+      actionArea.style.display = "none";
+      setWavesActive(false);
+    }
+
+    function copyShareLink() {
+      // Direct link back to this player
+      const shareUrl = window.location.origin + window.location.pathname;
+      const commentFormat = `🎙️ [Voice Comment] Listen: ${shareUrl}`;
+      navigator.clipboard.writeText(commentFormat);
+      alert("Copied to clipboard! You can paste it into YouTube or Instagram comments.");
+    }
   </script>
 </body>
 </html>
