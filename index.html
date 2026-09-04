@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Voice Note</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background-color: #0b0e14;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    .player-card {
+      width: 90%;
+      max-width: 380px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 24px;
+      padding: 28px 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      text-align: center;
+    }
+    .status {
+      font-size: 13px;
+      color: #8b949e;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .wave-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      height: 60px;
+      margin-bottom: 24px;
+    }
+    .bar {
+      width: 4px;
+      height: 8px;
+      background: #58a6ff;
+      border-radius: 4px;
+      transition: height 0.1s ease;
+    }
+    .btn-play {
+      background: #238636;
+      color: white;
+      border: none;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      outline: none;
+      box-shadow: 0 4px 15px rgba(35, 134, 54, 0.4);
+    }
+    .btn-play svg { width: 26px; height: 26px; fill: white; }
+  </style>
+</head>
+<body>
+
+  <div class="player-card">
+    <div class="status" id="statusText">Tap to Listen</div>
+    
+    <div class="wave-container" id="waveContainer"></div>
+
+    <button class="btn-play" id="playBtn" onclick="togglePlay()">
+      <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+  </div>
+
+  <audio id="audio" preload="metadata"></audio>
+
+  <script>
+    // Grab audio link passed in URL parameters: e.g. site.com/?audio=URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const audioUrl = urlParams.get('audio') || 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
+    
+    const audio = document.getElementById('audio');
+    audio.src = audioUrl;
+
+    const container = document.getElementById('waveContainer');
+    const barCount = 28;
+    const bars = [];
+
+    for (let i = 0; i < barCount; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      container.appendChild(bar);
+      bars.push(bar);
+    }
+
+    let interval;
+    function animateWaves(play) {
+      if (play) {
+        interval = setInterval(() => {
+          bars.forEach(bar => {
+            const h = Math.floor(Math.random() * 50) + 8;
+            bar.style.height = `${h}px`;
+          });
+        }, 120);
+      } else {
+        clearInterval(interval);
+        bars.forEach(bar => bar.style.height = '8px');
+      }
+    }
+
+    function togglePlay() {
+      const icon = document.getElementById('playIcon');
+      const status = document.getElementById('statusText');
+
+      if (audio.paused) {
+        audio.play();
+        animateWaves(true);
+        status.innerText = "Playing Voice Comment...";
+        icon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+      } else {
+        audio.pause();
+        animateWaves(false);
+        status.innerText = "Paused";
+        icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+      }
+    }
+
+    audio.onended = () => {
+      animateWaves(false);
+      document.getElementById('statusText').innerText = "Finished";
+      document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+    };
+  </script>
+</body>
+</html>
